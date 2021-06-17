@@ -11,6 +11,13 @@ from pythran.utils import isintegral, isnum
 import gast as ast
 from copy import deepcopy
 
+class FakeObject(object):
+    def __call__(self, *args, **kwargs):
+        return FakeObject()
+
+    def __getattr__(self, attr):
+        return FakeObject()
+
 
 class ConstantFolding(Transformation):
 
@@ -40,7 +47,13 @@ class ConstantFolding(Transformation):
             # __dispatch__ is the only fake top-level module
             if module_name != '__dispatch__':
                 alias_module_name = mangle(module_name)
-                self.env[alias_module_name] = __import__(module_name)
+                try:
+                    self.env[alias_module_name] = __import__(module_name)
+                except ImportError:
+                    # when the module is not available at runtime, we provide a
+                    # fake object that emulates its behavior but cannot be
+                    # folded.
+                    self.env[alias_module_name] = FakeObject()
 
         # we need to parse the whole code to be able to apply user-defined pure
         # function but import are resolved before so we remove them to avoid
